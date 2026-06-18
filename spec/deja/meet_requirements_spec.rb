@@ -40,6 +40,42 @@ RSpec.describe "meet_requirements matcher" do
     end
   end
 
+  it "merges judge_attrs into the judge call, with reserved keys winning" do
+    captured = nil
+    judge = FakeRealClient.new do |kwargs|
+      captured = kwargs
+      FakeRealClient.text(JSON.generate({"meets_requirements" => true, "reason" => "ok"}))
+    end
+    configure_deja(judge_client: judge)
+    Deja.configure do |c|
+      c.judge_attrs = {
+        model: "claude-opus-4-8",
+        temperature: 0,
+        messages: [ {role: "user", content: "HIJACK"} ], # reserved — must be ignored
+      }
+    end
+    use_llm_cache("req-attrs")
+
+    with_recording do
+      expect("x").to meet_requirements("some requirement")
+    end
+
+    expect(captured[:model]).to eq("claude-opus-4-8")  # override applied
+    expect(captured[:max_tokens]).to eq(512)           # default preserved
+    expect(captured[:temperature]).to eq(0)            # arbitrary arg passed through
+    expect(captured[:messages].first[:content]).to include("some requirement") # reserved key won
+  end
+
+  it "raises a clear error when no judge adapter handles the judge_client" do
+    configure_deja(judge_client: Object.new) # no adapter handles a bare Object
+    use_llm_cache("req-unknown-judge")
+
+    with_recording do
+      expect { expect("x").to meet_requirements("some requirement") }
+        .to raise_error(Deja::Error, /No Deja judge adapter handles/)
+    end
+  end
+
   it "raises a clear error when a judge call is needed but judge_client isn't set" do
     configure_deja # no judge_client
     use_llm_cache("req-no-judge")

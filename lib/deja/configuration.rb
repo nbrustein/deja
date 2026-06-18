@@ -10,22 +10,24 @@ module Deja
     # Directory display in error messages is computed relative to this.
     attr_reader :cache_root, :project_root, :adapters
 
-    # Judge call used by the `meet_requirements` matcher. Independent of the
-    # providers under test — one consistent judge for the whole suite.
-    attr_accessor :judge_model, :judge_max_tokens, :judge_system_prompt
-
-    DEFAULT_JUDGE_SYSTEM_PROMPT =
-      "You evaluate whether a candidate value meets a set of requirements. " \
-      "Use the structured output schema to return your verdict."
+    # Attrs that override the `meet_requirements` judge's defaults. Set
+    # provider-specific args here (model, temperature, …) without Deja having to
+    # name each one — different judge LLMs expose different args. The defaults
+    # themselves live with the judge code, not here, since they're specific to
+    # whatever LLM the judge speaks. `messages` and `output_config` are reserved
+    # by the matcher and can't be overridden.
+    attr_writer :judge_attrs
 
     def initialize
       @cache_root = nil
       @project_root = Pathname.new(Dir.pwd)
-      @judge_model = "claude-sonnet-4-5"
-      @judge_max_tokens = 512
-      @judge_system_prompt = DEFAULT_JUDGE_SYSTEM_PROMPT
+      @judge_attrs = {}
       @judge_client = nil
       @adapters = {}
+    end
+
+    def judge_attrs
+      @judge_attrs || {}
     end
 
     # Accepts a String or Pathname (e.g. Rails.root.join(...)).

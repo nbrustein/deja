@@ -93,10 +93,13 @@ RSpec::Matchers.define :meet_requirements do |requirements|
     # is the only cache that should track these calls.
     config = Deja.configuration
     judge_client = config.judge_client.call
-    response = judge_client.messages.create(
-      model: config.judge_model,
-      max_tokens: config.judge_max_tokens,
-      system: config.judge_system_prompt,
+    # The judge adapter is chosen by the client's type, and supplies
+    # provider-appropriate defaults; judge_attrs override them. messages and
+    # output_config are reserved — they carry the requirements and the
+    # structured-output contract this matcher parses, so they're merged last and
+    # win over both.
+    judge = Deja::Judges.for_client(judge_client)
+    judge_args = judge.defaults.merge(config.judge_attrs).merge(
       messages: [
         {
           role: "user",
@@ -119,6 +122,7 @@ RSpec::Matchers.define :meet_requirements do |requirements|
         },
       },
     )
+    response = judge_client.messages.create(**judge_args)
 
     parsed = JSON.parse(response.content.first.text)
     if parsed["meets_requirements"]

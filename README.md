@@ -72,8 +72,14 @@ Deja.configure do |c|
     install: ->(mock_anthropic_client) { allow(AnthropicClient).to receive(:client).and_return(mock_anthropic_client) }
 
   # Required only if you use the `meet_requirements` matcher: the client Deja
-  # uses to judge a value against its requirements.
+  # uses to judge a value against its requirements. Deja picks provider-specific
+  # defaults from the client's type (Anthropic is built in).
   c.judge_client { Anthropic::Client.new }
+
+  # Optional: override the judge's defaults (model, max_tokens, system prompt) or
+  # pass provider-specific args. These are merged into the judge's
+  # messages.create call over its built-in defaults.
+  c.judge_attrs = { model: "claude-sonnet-4-5" }
 end
 ```
 
@@ -199,9 +205,7 @@ cached entry the test no longer reaches.
 | `register(provider, install:, real_client:, as:)` | — (≥1 required) | Register a provider. `install` swaps your app's client for Deja's stub; `real_client` (optional) builds a live client for recording. |
 | `project_root` | `Dir.pwd` | Base for relative paths in error messages. |
 | `judge_client { ... }` | — (required for `meet_requirements`) | Live client used by the `meet_requirements` judge. No default. |
-| `judge_model` | `claude-sonnet-4-5` | Model used by `meet_requirements`. |
-| `judge_max_tokens` | `512` | Judge call token cap. |
-| `judge_system_prompt` | generic | System prompt for the judge. |
+| `judge_attrs = { ... }` | `{}` | Attrs merged into the `meet_requirements` judge's `messages.create` call, overriding the judge's own defaults (model, token limit, system prompt). `messages` and `output_config` are reserved by the matcher. |
 
 ## License
 

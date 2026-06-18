@@ -18,12 +18,15 @@ module DejaSpecHelpers
     prev.nil? ? ENV.delete("ALLOW_LLM_CALL") : ENV["ALLOW_LLM_CALL"] = prev
   end
 
-  # Configure Deja for this example, defaulting the two host seams to the fakes.
-  def configure_deja(real_client:)
+  # Configure Deja for this example: register the fake provider and, optionally, a
+  # fake judge client for the meet_requirements matcher.
+  def configure_deja(real_client: FakeRealClient.new { FakeRealClient.text("unused") }, judge_client: nil)
     Deja.configure do |c|
       c.cache_root = @deja_cache_root
-      c.install_client { |client| allow(FakeApp).to receive(:client).and_return(client) }
-      c.build_real_client { real_client }
+      c.register :anthropic,
+        install: ->(client) { allow(FakeApp).to receive(:client).and_return(client) },
+        real_client: -> { real_client }
+      c.judge_client { judge_client } if judge_client
     end
   end
 end

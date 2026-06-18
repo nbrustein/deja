@@ -4,15 +4,14 @@ require "pathname"
 
 module Deja
   # Holds everything host-specific so the gem itself stays ignorant of your app.
-  # The two seams you usually have to set are `cache_root` (where the recorded
-  # YAML lives) and `install_client` (how to swap your app's LLM client for
-  # Deja's caching stub).
+  # You always set `cache_root` and register at least one provider; the judge
+  # settings only matter if you use the `meet_requirements` matcher.
   class Configuration
     # Directory display in error messages is computed relative to this.
-    attr_reader :cache_root, :project_root
+    attr_reader :cache_root, :project_root, :adapters
 
-    # Judge call used by the `meet_requirements` matcher. Override the model when
-    # you want a cheaper/stronger judge; override the prompt for domain framing.
+    # Judge call used by the `meet_requirements` matcher. Independent of the
+    # providers under test — one consistent judge for the whole suite.
     attr_accessor :judge_model, :judge_max_tokens, :judge_system_prompt
 
     DEFAULT_JUDGE_SYSTEM_PROMPT =
@@ -25,8 +24,8 @@ module Deja
       @judge_model = "claude-sonnet-4-5"
       @judge_max_tokens = 512
       @judge_system_prompt = DEFAULT_JUDGE_SYSTEM_PROMPT
-      @build_real_client = nil
-      @install_client = nil
+      @judge_client = nil
+      @adapters = {}
     end
 
     # Accepts a String or Pathname (e.g. Rails.root.join(...)).
@@ -47,46 +46,36 @@ module Deja
       MSG
     end
 
-    # How to install Deja's caching client into your app for the duration of a
-    # test. The block runs in the RSpec example's context (so RSpec's `allow` is
-    # available) and receives the stub client to return.
+    # Register a provider adapter. `provider` is a built-in adapter name (today:
+    # `:anthropic`). `install` swaps your app's client for Deja's stub and runs in
+    # the example's context (RSpec's `allow` is available). `real_client` is an
+    # optional block building a live client; it defaults per provider. `as` names
+    # the registration when you want two of the same provider.
     #
-    #   c.install_client { |client| allow(AnthropicClient).to receive(:client).and_return(client) }
-    #
-    # Called with no block, returns the configured proc (raises if unset).
-    def install_client(&block)
-      if block
-        @install_client = block
-      else
-        @install_client || raise(Deja::Error, <<~MSG)
-          Deja.configuration.install_client is not configured. Provide a block that
-          stubs your app's LLM client with the one Deja hands it, e.g.
-
-            Deja.configure do |c|
-              c.install_client { |client| allow(AnthropicClient).to receive(:client).and_return(client) }
-            end
-        MSG
-      end
+    #   c.register :anthropic,
+    #     install: ->(client) { allow(AnthropicClient).to receive(:client).and_return(client) },
+    #     real_client: -> { Anthropic::Client.new(api_key: ENV["CLAUDE_API_KEY"]) }
+    def register(provider, install:, real_client: nil, as: provider)
+      @adapters[as] = Deja::Adapters.build(provider, key: as, install:, real_client:)
     end
 
-    # How to build a *real* (un-stubbed) Anthropic client. Used to record live
-    # responses (ALLOW_LLM_CALL=1) and for the `meet_requirements` judge call.
-    # Defaults to an Anthropic client keyed by ENV["CLAUDE_API_KEY"].
+    # How to build the client used by the `meet_requirements` judge. Defaults to
+    # an Anthropic client keyed by ENV["CLAUDE_API_KEY"].
     #
-    #   c.build_real_client { Anthropic::Client.new(api_key: ENV["CLAUDE_API_KEY"]) }
+    #   c.judge_client { Anthropic::Client.new(api_key: ENV["CLAUDE_API_KEY"]) }
     #
     # Called with no block, returns the configured (or default) proc.
-    def build_real_client(&block)
+    def judge_client(&block)
       if block
-        @build_real_client = block
+        @judge_client = block
       else
-        @build_real_client || default_real_client_builder
+        @judge_client || default_judge_client
       end
     end
 
     private
 
-    def default_real_client_builder
+    def default_judge_client
       -> { Anthropic::Client.new(api_key: ENV["CLAUDE_API_KEY"]) }
     end
   end

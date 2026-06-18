@@ -13,18 +13,19 @@ module Deja
     # this example.
     def use_llm_cache(id)
       RSpec.current_example.metadata[:llm_cache_id] = id
-      Deja::AnthropicMock.enable
+      Deja::Session.enable
     end
 
     # Assert the code path under test never reaches the LLM. Call from a `before`
     # block or the top of an example.
     def forbid_calls
-      Deja::AnthropicMock.forbid_calls
+      Deja::Session.forbid
     end
 
-    # Assert exactly one LLM call happened and return its kwargs.
+    # Assert exactly one LLM call happened (across all providers) and return its
+    # kwargs.
     def expect_llm_called
-      Deja::AnthropicMock.expect_llm_called
+      Deja::Session.expect_called
     end
 
     # Read a value from a recorded cache YAML file by walking `path`. Each segment
@@ -87,11 +88,11 @@ RSpec::Matchers.define :meet_requirements do |requirements|
       next false
     end
 
-    # Use a real client (not the spec's stubbed one) so this judge call bypasses
-    # the Deja::Cache layer the spec has installed. The meet_requirements cache is
-    # the only cache that should track these calls.
+    # Use the dedicated judge client — independent of whatever provider the spec
+    # is recording, and outside the Deja::Cache layer. The meet_requirements cache
+    # is the only cache that should track these calls.
     config = Deja.configuration
-    judge_client = config.build_real_client.call
+    judge_client = config.judge_client.call
     response = judge_client.messages.create(
       model: config.judge_model,
       max_tokens: config.judge_max_tokens,

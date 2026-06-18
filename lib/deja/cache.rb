@@ -18,14 +18,11 @@ module Deja
   #   test_name:     <full RSpec description>
   #   summary:       <human-readable counts: total / tool_use / message-only>
   #   calls:
-  #     - hash:          <12-char fingerprint of kwargs — used for lookup>
-  #       prompt:        <kwargs[:system]>
+  #     - provider:      <which registered adapter produced this — e.g. anthropic>
+  #       hash:          <12-char fingerprint of kwargs — used for lookup>
+  #       prompt:        <adapter-supplied readable prompt, when present>
   #       payload:       <full canonicalized kwargs — for a precise diff on miss>
-  #       response:
-  #         text_response: <joined text blocks, when present>
-  #         tool_uses:     <id/name/input per tool_use block, when present>
-  #         content:       <canonical block list — what the SDK consumer deserializes>
-  #         text_chunks:   <only for messages.stream>
+  #       response:      <adapter-serialized response hash; the adapter replays it>
   #
   # Behavior:
   #   DISABLE_LLM_CACHE=1     → bypass cache entirely
@@ -39,7 +36,7 @@ module Deja
       Deja.configuration.cache_root!.join("cached_calls")
     end
 
-    def fetch(method, kwargs)
+    def fetch(method, kwargs, provider:, prompt: nil)
       return yield if ENV["DISABLE_LLM_CACHE"]
 
       hash = call_hash(method, kwargs)
@@ -50,7 +47,7 @@ module Deja
         response_from_entry(entry)
       elsif ENV["ALLOW_LLM_CALL"]
         response = yield
-        append_call!(hash, kwargs, response)
+        append_call!(provider, hash, kwargs, prompt, response)
         response
       else
         raise Deja::MissingCacheError, build_miss_message(hash, kwargs)
@@ -187,17 +184,15 @@ module Deja
       data["calls"].find {|c| c["hash"] == hash }
     end
 
+    # The recorded response hash, handed back to the adapter to deserialize.
     def response_from_entry(entry)
-      recorded = entry.fetch("response")
-      response = {"content" => recorded.fetch("content")}
-      response["text_chunks"] = recorded["text_chunks"] if recorded.key?("text_chunks")
-      response
+      entry.fetch("response")
     end
 
-    def append_call!(hash, kwargs, response)
+    def append_call!(provider, hash, kwargs, prompt, response)
       FileUtils.mkdir_p(cache_file.dirname)
       data = cache_file.exist? ? YAML.safe_load(cache_file.read) : new_file_data
-      data["calls"] << build_call_entry(hash, kwargs, response)
+      data["calls"] << build_call_entry(provider, hash, kwargs, prompt, response)
       data["summary"] = build_summary(data["calls"])
       cache_file.write(YAML.dump(stringify(data)))
     end
@@ -211,30 +206,16 @@ module Deja
       }
     end
 
-    def build_call_entry(hash, kwargs, response)
-      blocks = response.fetch("content")
-      text_blocks = blocks.select {|b| b["type"] == "text" }
-      tool_use_blocks = blocks.select {|b| b["type"] == "tool_use" }
-
-      recorded = {}
-      recorded["text_response"] = text_blocks.map {|b| b["text"] }.join("\n") unless text_blocks.empty?
-      unless tool_use_blocks.empty?
-        recorded["tool_uses"] = tool_use_blocks.map do |b|
-          {"id" => b["id"], "name" => b["name"], "input" => b["input"]}
-        end
-      end
-      recorded["content"] = blocks
-      recorded["text_chunks"] = response["text_chunks"] if response.key?("text_chunks")
-
-      {
-        "hash" => hash,
-        "prompt" => kwargs[:system].to_s,
-        # Full canonicalized payload (the same shape that goes into the hash)
-        # so a cache miss can report a precise diff. Stored alongside `prompt`
-        # for backwards compat with older entries that only have `prompt`.
-        "payload" => cache_affecting_args(kwargs),
-        "response" => recorded,
-      }
+    # Provider-agnostic: the adapter already serialized `response` (including any
+    # readable conveniences like text_response/tool_uses). We tag the entry with
+    # the provider and store the canonicalized payload so a cache miss can report
+    # a precise diff.
+    def build_call_entry(provider, hash, kwargs, prompt, response)
+      entry = {"provider" => provider.to_s, "hash" => hash}
+      entry["prompt"] = prompt unless prompt.nil?
+      entry["payload"] = cache_affecting_args(kwargs)
+      entry["response"] = response
+      entry
     end
 
     def build_summary(calls)

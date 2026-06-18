@@ -24,8 +24,8 @@ end
 
 ## Setup
 
-Require the RSpec integration and configure the two host-specific seams — where
-the cache lives, and how to swap your app's client for Deja's caching stub:
+Require the RSpec integration, point Deja at a cache directory, and register a
+provider — telling it how to swap your app's client for Deja's caching stub:
 
 ```ruby
 # spec/support/deja.rb (or spec/rails_helper.rb)
@@ -36,7 +36,8 @@ Deja.configure do |c|
 
   # Whatever your app calls to get an Anthropic client. Deja hands you its
   # caching stub; you return it from that accessor for the duration of the test.
-  c.install_client { |client| allow(AnthropicClient).to receive(:client).and_return(client) }
+  c.register :anthropic,
+    install: ->(client) { allow(AnthropicClient).to receive(:client).and_return(client) }
 end
 ```
 
@@ -56,6 +57,28 @@ so recording can reach it:
 ```ruby
 WebMock.disable_net_connect!(allow_localhost: true, allow: ["api.anthropic.com"])
 ```
+
+### Multiple providers
+
+Register more than one. `use_llm_cache` installs every registered provider's
+stub, so each test records whichever provider its code actually calls — into the
+same per-test cache file, tagged with `provider:`. `expect_llm_called` and
+`forbid_calls` span all of them.
+
+```ruby
+Deja.configure do |c|
+  c.cache_root = Rails.root.join("spec/support/cache")
+
+  c.register :anthropic,
+    install: ->(client) { allow(AnthropicClient).to receive(:client).and_return(client) }
+  # Future: c.register :gemini, install: ->(client) { ... }
+end
+```
+
+> Today only `:anthropic` ships. Adding a provider is additive — a `Deja::Adapters::Base`
+> subclass that defines the stub shape and serialization, plus a `register_type` call.
+> The `meet_requirements` judge is deliberately separate (`judge_client`), so it
+> stays consistent regardless of which provider a test exercises.
 
 ## The workflow
 
@@ -128,9 +151,9 @@ cached entry the test no longer reaches.
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | `cache_root` | — (required) | Directory for recorded YAML. |
-| `install_client { \|client\| ... }` | — (required) | Swap your app's client for Deja's stub. |
-| `build_real_client { ... }` | Anthropic client from `CLAUDE_API_KEY` | How to build a live client for recording and the judge. |
+| `register(provider, install:, real_client:, as:)` | — (≥1 required) | Register a provider. `install` swaps your app's client for Deja's stub; `real_client` (optional) builds a live client for recording. |
 | `project_root` | `Dir.pwd` | Base for relative paths in error messages. |
+| `judge_client { ... }` | Anthropic client from `CLAUDE_API_KEY` | Live client used by the `meet_requirements` judge. |
 | `judge_model` | `claude-sonnet-4-5` | Model used by `meet_requirements`. |
 | `judge_max_tokens` | `512` | Judge call token cap. |
 | `judge_system_prompt` | generic | System prompt for the judge. |

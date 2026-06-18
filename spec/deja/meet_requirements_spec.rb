@@ -9,7 +9,7 @@ RSpec.describe "meet_requirements matcher" do
 
   it "passes via the judge under ALLOW_LLM_CALL, then replays from cache" do
     judge = judge_returning(meets: true)
-    configure_deja(real_client: judge)
+    configure_deja(judge_client: judge)
     use_llm_cache("req")
 
     with_recording do
@@ -23,7 +23,7 @@ RSpec.describe "meet_requirements matcher" do
   end
 
   it "fails (no recording) when the value isn't cached and ALLOW_LLM_CALL is unset" do
-    configure_deja(real_client: judge_returning(meets: true))
+    configure_deja(judge_client: judge_returning(meets: true))
     use_llm_cache("req-uncached")
 
     expect { expect("x").to meet_requirements("must already be cached") }
@@ -31,7 +31,7 @@ RSpec.describe "meet_requirements matcher" do
   end
 
   it "fails when the judge rejects the value" do
-    configure_deja(real_client: judge_returning(meets: false, reason: "too formal"))
+    configure_deja(judge_client: judge_returning(meets: false, reason: "too formal"))
     use_llm_cache("req-rejected")
 
     with_recording do

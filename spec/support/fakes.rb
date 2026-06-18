@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Stand-in for a host app's LLM client accessor (e.g. `AnthropicClient.client`).
-# Deja stubs `.client` via the configured install_client seam.
+# Deja stubs `.client` via a registered adapter's install seam.
 class FakeApp
   def self.client
     raise "FakeApp.client must be stubbed by Deja"

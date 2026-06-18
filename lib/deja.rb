@@ -6,9 +6,11 @@ require "deja/version"
 # time it happens and replays the recorded response on every run after that, so
 # tests that exercise real model behavior stay fast, offline, and deterministic.
 #
+# Providers are pluggable via adapters (see Deja::Adapters) — a suite can mix
+# them, and each test exercises whichever it actually calls.
+#
 # It also ships `meet_requirements`, an RSpec matcher that asserts an LLM-produced
-# value satisfies a free-text description (judged once by the model, then cached)
-# instead of pinning to an exact string.
+# value satisfies a free-text description (judged once, then cached).
 #
 # See README.md for the full record/replay workflow and configuration.
 module Deja
@@ -26,7 +28,8 @@ module Deja
     #
     #   Deja.configure do |c|
     #     c.cache_root = Rails.root.join("spec/support/cache")
-    #     c.install_client { |client| allow(AnthropicClient).to receive(:client).and_return(client) }
+    #     c.register :anthropic,
+    #       install: ->(client) { allow(AnthropicClient).to receive(:client).and_return(client) }
     #   end
     def configure
       yield(configuration)
@@ -37,15 +40,43 @@ module Deja
       @configuration ||= Configuration.new
     end
 
-    # Mostly for the gem's own test suite — drops any configuration so the next
-    # `configuration` call starts fresh.
+    # Drops configuration and the captured call log — used between examples and by
+    # the gem's own suite.
     def reset_configuration!
       @configuration = Configuration.new
+      reset_calls!
+    end
+
+    # Register a provider adapter (delegates to the configuration). See
+    # Configuration#register.
+    def register(provider, **opts)
+      configuration.register(provider, **opts)
+    end
+
+    # The registered adapters, in registration order.
+    def adapters
+      configuration.adapters.values
+    end
+
+    # --- captured calls (reset per example by Session.enable) ---
+
+    def calls
+      @calls ||= []
+    end
+
+    def record_call(provider, method, kwargs)
+      calls << {provider:, method:, kwargs:}
+    end
+
+    def reset_calls!
+      @calls = []
     end
   end
 end
 
 require "deja/configuration"
 require "deja/cache"
-require "deja/anthropic_mock"
 require "deja/requirements_cache"
+require "deja/adapters/base"
+require "deja/adapters/anthropic"
+require "deja/session"

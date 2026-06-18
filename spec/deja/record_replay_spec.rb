@@ -33,7 +33,7 @@ RSpec.describe "Deja record + replay" do
 
   it "raises MissingIdError when no cache id was set" do
     configure_deja(real_client: FakeRealClient.new { FakeRealClient.text("x") })
-    Deja::AnthropicMock.enable # install the stub without use_llm_cache
+    Deja::Session.enable # install the stub without use_llm_cache
 
     expect { with_recording { create("hi") } }
       .to raise_error(Deja::MissingIdError, /use_llm_cache/)

@@ -18,7 +18,7 @@ module Deja
 
     # Assert the code path under test never reaches the LLM. Call from a `before`
     # block or the top of an example.
-    def forbid_calls
+    def forbid_llm_calls
       Deja::Session.forbid
     end
 

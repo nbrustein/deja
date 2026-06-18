@@ -39,4 +39,14 @@ RSpec.describe "meet_requirements matcher" do
         .to raise_error(RSpec::Expectations::ExpectationNotMetError, /too formal/)
     end
   end
+
+  it "raises a clear error when a judge call is needed but judge_client isn't set" do
+    configure_deja # no judge_client
+    use_llm_cache("req-no-judge")
+
+    with_recording do
+      expect { expect("x").to meet_requirements("some requirement") }
+        .to raise_error(Deja::Error, /judge_client is not set/)
+    end
+  end
 end

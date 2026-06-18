@@ -30,8 +30,10 @@ module Deja
         client
       end
 
+      # A plain client; the SDK authenticates via its standard ENV["ANTHROPIC_API_KEY"].
+      # Override with `real_client:` in `register` to authenticate differently.
       def default_real_client
-        -> { ::Anthropic::Client.new(api_key: ENV["CLAUDE_API_KEY"]) }
+        -> { ::Anthropic::Client.new }
       end
 
       def prompt_for(kwargs)

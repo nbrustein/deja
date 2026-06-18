@@ -70,10 +70,10 @@ RSpec.describe "Deja record + replay" do
     end
   end
 
-  describe "forbid_calls" do
+  describe "forbid_llm_calls" do
     it "makes any access to the client raise" do
       configure_deja(real_client: FakeRealClient.new { FakeRealClient.text("ok") })
-      forbid_calls
+      forbid_llm_calls
 
       expect { FakeApp.client.messages }.to raise_error(/should not be called/)
     end

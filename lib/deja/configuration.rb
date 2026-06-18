@@ -54,29 +54,32 @@ module Deja
     #
     #   c.register :anthropic,
     #     install: ->(client) { allow(AnthropicClient).to receive(:client).and_return(client) },
-    #     real_client: -> { Anthropic::Client.new(api_key: ENV["CLAUDE_API_KEY"]) }
+    #     real_client: -> { Anthropic::Client.new(api_key: my_key) }
     def register(provider, install:, real_client: nil, as: provider)
       @adapters[as] = Deja::Adapters.build(provider, key: as, install:, real_client:)
     end
 
-    # How to build the client used by the `meet_requirements` judge. Defaults to
-    # an Anthropic client keyed by ENV["CLAUDE_API_KEY"].
+    # How to build the client used by the `meet_requirements` judge. Required if
+    # you use that matcher — there is no default, so the judge's auth/model is an
+    # explicit choice. The block returns a client.
     #
-    #   c.judge_client { Anthropic::Client.new(api_key: ENV["CLAUDE_API_KEY"]) }
+    #   c.judge_client { Anthropic::Client.new }
     #
-    # Called with no block, returns the configured (or default) proc.
+    # Called with no block, returns the configured proc (raises if unset).
     def judge_client(&block)
       if block
         @judge_client = block
       else
-        @judge_client || default_judge_client
+        @judge_client || raise(Deja::Error, <<~MSG)
+          Deja.configuration.judge_client is not set. The `meet_requirements`
+          matcher needs a client to judge values against requirements. Set one in
+          your Deja.configure block:
+
+            Deja.configure do |c|
+              c.judge_client { Anthropic::Client.new }
+            end
+        MSG
       end
-    end
-
-    private
-
-    def default_judge_client
-      -> { Anthropic::Client.new(api_key: ENV["CLAUDE_API_KEY"]) }
     end
   end
 end

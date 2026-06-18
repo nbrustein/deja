@@ -70,6 +70,10 @@ Deja.configure do |c|
   # caching stub; you return it from that accessor for the duration of the test.
   c.register :anthropic,
     install: ->(mock_anthropic_client) { allow(AnthropicClient).to receive(:client).and_return(mock_anthropic_client) }
+
+  # Required only if you use the `meet_requirements` matcher: the client Deja
+  # uses to judge a value against its requirements.
+  c.judge_client { Anthropic::Client.new }
 end
 ```
 
@@ -79,7 +83,7 @@ Deja will mock out calls to `AnthropicClient.client`:
 ```ruby
 class AnthropicClient
   def self.client
-    Anthropic::Client.new(api_key: ENV["CLAUDE_API_KEY"])
+    Anthropic::Client.new
   end
 end
 ```
@@ -94,7 +98,7 @@ forgotten stub surfaces as a blocked request rather than a silent live call):
 WebMock.disable_net_connect!(allow_localhost: true, allow: ["api.anthropic.com"])
 ```
 
-## The workflow
+## Assert on LLM api arguments and response
 
 ```ruby
 it "summarizes an article" do
@@ -128,13 +132,41 @@ bundle exec rspec spec/integration/article_summarizer_spec.rb
 Commit the YAML files under `cache_root`. They're the recorded fixtures; CI
 replays them with no API key.
 
+## Use LLM response in a subsequent assertion
+
+When your code *acts on* what the model returned, you'll often want to assert it
+used that output correctly. But the output is non-deterministic, so you can't
+hardcode it. `cached_llm_value` reads the actual recorded response out of the
+cache file by walking keys and array indices — so your assertion and the
+recording stay in sync every time you re-record.
+
+```ruby
+it "stores the topics the model extracted" do
+  use_llm_cache("2026-05-01_09-15")
+
+  # Asks the model to extract topics via a tool call, then saves them.
+  ArticleTagger.new(article).call
+
+  # Read what the model actually returned (a tool_use input) from the cache and
+  # assert your code persisted exactly that — no hardcoded expectation.
+  topics = cached_llm_value("2026-05-01_09-15",
+    "calls", 0, "response", "tool_uses", 0, "input", "topics")
+
+  expect(Article.last.topics).to eq(topics)
+end
+```
+
+The path mirrors the recorded YAML (see [How it caches](#how-it-caches)):
+`calls` → the first call → its `response` → the first `tool_uses` entry → that
+tool call's `input` → the `topics` key.
+
 ## DSL reference
 
 | Helper | What it does |
 | --- | --- |
 | `use_llm_cache(id)` | Installs the caching stub and sets the per-test cache id. Call once at the top of an example. |
-| `expect_llm_called` | Asserts exactly one LLM call happened; returns its kwargs. |
-| `forbid_calls` | Installs a client that raises on any access — proves a code path never reaches the LLM. |
+| `expect_llm_called` | Asserts exactly one LLM call happened; returns its kwargs. Currently only useful where there is a single llm call in a test. |
+| `forbid_llm_calls` | Installs a client that raises on any access — proves a code path never reaches the LLM. |
 | `cached_llm_value(id, *path)` | Reads a value out of a recorded YAML file by walking keys/indices. |
 | `meet_requirements(text)` | Matcher: asserts a value satisfies free-text requirements (judged once, cached). |
 
@@ -156,9 +188,8 @@ cached entry the test no longer reaches.
 
 | Variable | Effect |
 | --- | --- |
-| `ALLOW_LLM_CALL=1` | Make real calls and record/update the cache. Requires `CLAUDE_API_KEY`. |
+| `ALLOW_LLM_CALL=1` | Make real calls and record/update the cache. Your real client must be able to authenticate (the Anthropic SDK reads `ANTHROPIC_API_KEY` by default). |
 | `DISABLE_LLM_CACHE=1` | Bypass the cache entirely and always call live (debugging). |
-| `CLAUDE_API_KEY` | Used by the default real-client builder. |
 
 ## Configuration
 
@@ -167,7 +198,7 @@ cached entry the test no longer reaches.
 | `cache_root` | — (required) | Directory for recorded YAML. |
 | `register(provider, install:, real_client:, as:)` | — (≥1 required) | Register a provider. `install` swaps your app's client for Deja's stub; `real_client` (optional) builds a live client for recording. |
 | `project_root` | `Dir.pwd` | Base for relative paths in error messages. |
-| `judge_client { ... }` | Anthropic client from `CLAUDE_API_KEY` | Live client used by the `meet_requirements` judge. |
+| `judge_client { ... }` | — (required for `meet_requirements`) | Live client used by the `meet_requirements` judge. No default. |
 | `judge_model` | `claude-sonnet-4-5` | Model used by `meet_requirements`. |
 | `judge_max_tokens` | `512` | Judge call token cap. |
 | `judge_system_prompt` | generic | System prompt for the judge. |

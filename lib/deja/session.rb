@@ -45,7 +45,7 @@ module Deja
 
     def poison_client
       poison = Object.new
-      def poison.method_missing(*) = raise("LLM should not be called (deja forbid_calls)")
+      def poison.method_missing(*) = raise("LLM should not be called (deja forbid_llm_calls)")
       def poison.respond_to_missing?(*) = true
       poison
     end

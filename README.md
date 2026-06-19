@@ -1,6 +1,6 @@
 # Deja
 
-Deja gives you automated testing tools that allow you to assert on the arguments you are sending to LLM apis and on the responses you are getting from them.
+Deja is a testing toolkit for code that calls LLM apis. Your tests make real calls to real LLMs, so you can confirm the model actually gives the results you expect — you're checking genuine model behavior, not a stub you wrote. To keep that fast and repeatable, Deja records each real call once and replays it from a cache on every later run, so your suite stays deterministic and free to run in CI.
 
 ## Overview
 

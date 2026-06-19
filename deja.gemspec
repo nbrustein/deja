@@ -35,6 +35,8 @@ Gem::Specification.new do |spec|
   spec.require_paths = [ "lib" ]
 
   spec.add_dependency "diff-lcs", "~> 1.5"
+  # Anthropic SDK shape (response structs + serialize/deserialize) lives here.
+  spec.add_dependency "llm_mock_anthropic", ">= 0.1"
 
   # RSpec and the Anthropic SDK are how you actually use Deja, but they live in
   # the host app's test setup. They're declared as development dependencies so the

@@ -41,7 +41,15 @@ With this functionality, you can do the following.
 
 ### LLM support
 
-Today Deja targets the [Anthropic](https://github.com/anthropics/anthropic-sdk-ruby). Support for other SDKs is coming.
+Today Deja targets the [Anthropic](https://github.com/anthropics/anthropic-sdk-ruby) SDK. Support for other SDKs is coming.
+
+The Anthropic-specific bits — the response value objects and the
+serialize/deserialize that backs the cache — live in a separate gem,
+[`llm_mock_anthropic`](https://github.com/nbrustein/llm_mock_anthropic) (built on
+the shared [`llm_mock`](https://github.com/nbrustein/llm_mock) contract). Deja
+pulls it in automatically. If a test stubs the Anthropic client directly (rather
+than recording/replaying), use that gem's builders — e.g.
+`LlmMock::Anthropic.message([...])` — to construct canned responses.
 
 ## Usage
 

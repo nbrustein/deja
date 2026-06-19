@@ -18,3 +18,7 @@ All notable changes to this project are documented here. This project adheres to
   adapter; cache entries are tagged with `provider:`.
 - `Deja.configure` with `cache_root`, `register(provider, install:, real_client:)`,
   a dedicated `judge_client`, and judge model/prompt settings.
+- Anthropic SDK response structs + serialize/deserialize extracted into the
+  `llm_mock_anthropic` gem (on the shared `llm_mock` contract); the Anthropic
+  adapter now delegates to it. `Deja::Anthropic::*` is removed — use
+  `LlmMock::Anthropic::*` for canned responses.

@@ -33,7 +33,7 @@ module Deja
     module_function
 
     def cache_dir
-      Deja.configuration.cache_root!.join("cached_calls")
+      Deja.configuration.cache_root.join("cached_calls")
     end
 
     def fetch(method, kwargs, provider:, prompt: nil)

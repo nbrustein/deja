@@ -64,8 +64,6 @@ provider — telling it how to swap your app's client for Deja's caching stub:
 require "deja/rspec"
 
 Deja.configure do |c|
-  c.cache_root = Rails.root.join("spec/support/cache")
-
   # Whatever your app calls to get an Anthropic client. Deja hands you its
   # caching stub; you return it from that accessor for the duration of the test.
   c.register :anthropic,
@@ -81,6 +79,14 @@ Deja.configure do |c|
   # messages.create call over its built-in defaults.
   c.judge_attrs = { model: "claude-sonnet-4-5" }
 end
+```
+
+Recorded cache files go under `spec/support/deja_cache` by default. To put them
+somewhere else, set `cache_root` (a String or Pathname, resolved under your
+project root):
+
+```ruby
+Deja.configure { |c| c.cache_root = Rails.root.join("spec/support/cache") }
 ```
 
 That assumes your app funnels LLM access through a single seam. e.g., In this example,
@@ -201,7 +207,7 @@ cached entry the test no longer reaches.
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
-| `cache_root` | — (required) | Directory for recorded YAML. |
+| `cache_root` | `spec/support/deja_cache` | Directory for recorded YAML (under `project_root`). |
 | `register(provider, install:, real_client:, as:)` | — (≥1 required) | Register a provider. `install` swaps your app's client for Deja's stub; `real_client` (optional) builds a live client for recording. |
 | `project_root` | `Dir.pwd` | Base for relative paths in error messages. |
 | `judge_client { ... }` | — (required for `meet_requirements`) | Live client used by the `meet_requirements` judge. No default. |

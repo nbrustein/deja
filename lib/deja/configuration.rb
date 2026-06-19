@@ -4,11 +4,14 @@ require "pathname"
 
 module Deja
   # Holds everything host-specific so the gem itself stays ignorant of your app.
-  # You always set `cache_root` and register at least one provider; the judge
-  # settings only matter if you use the `meet_requirements` matcher.
+  # You register at least one provider; cache_root has a sensible default, and the
+  # judge settings only matter if you use the `meet_requirements` matcher.
   class Configuration
     # Directory display in error messages is computed relative to this.
-    attr_reader :cache_root, :project_root, :adapters
+    attr_reader :project_root, :adapters
+
+    # Default recorded-cache location, relative to project_root.
+    DEFAULT_CACHE_SUBPATH = "spec/support/deja_cache"
 
     # Attrs that override the `meet_requirements` judge's defaults. Set
     # provider-specific args here (model, temperature, …) without Deja having to
@@ -30,6 +33,11 @@ module Deja
       @judge_attrs || {}
     end
 
+    # Where recorded cache files live. Defaults to project_root/spec/support/deja_cache.
+    def cache_root
+      @cache_root || project_root.join(DEFAULT_CACHE_SUBPATH)
+    end
+
     # Accepts a String or Pathname (e.g. Rails.root.join(...)).
     def cache_root=(value)
       @cache_root = value && Pathname.new(value.to_s)
@@ -37,15 +45,6 @@ module Deja
 
     def project_root=(value)
       @project_root = Pathname.new(value.to_s)
-    end
-
-    def cache_root!
-      @cache_root || raise(Deja::Error, <<~MSG)
-        Deja.configuration.cache_root is not set. Point it at a directory for the
-        recorded cache, e.g.
-
-          Deja.configure { |c| c.cache_root = "spec/support/cache" }
-      MSG
     end
 
     # Register a provider adapter. `provider` is a built-in adapter name (today:

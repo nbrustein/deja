@@ -23,7 +23,7 @@ module Deja
     module_function
 
     def cache_dir
-      Deja.configuration.cache_root!.join("meets_requirements")
+      Deja.configuration.cache_root.join("meets_requirements")
     end
 
     def values_for(requirements)

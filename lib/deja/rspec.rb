@@ -1,8 +1,13 @@
 # frozen_string_literal: true
 
 require "deja"
-require "rspec"
 require "json"
+
+# Require the RSpec libraries we actually use, not the "rspec" meta-gem — hosts
+# on rspec-rails have rspec-core/expectations/mocks but not the meta-gem.
+require "rspec/core"
+require "rspec/expectations"
+require "rspec/mocks"
 
 module Deja
   # The test-facing DSL, mixed into every example by the RSpec.configure block
